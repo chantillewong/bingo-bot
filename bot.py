@@ -2,7 +2,8 @@ import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8727437729:AAHx_bGLbpc0QyJWY-oBZE2qjbu6Xag2IAk"
+import os
+TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 1087116288
 
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
