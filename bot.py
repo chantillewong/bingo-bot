@@ -11,7 +11,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-TOKEN = "YOUR_TOKEN_HERE"
+TOKEN = "8727437729:AAGYBX64ETEq1RvYiWiEMXsR1Vv0Qv4v7Rs"
 ADMIN_ID = 1087116288
 
 # =========================
