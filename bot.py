@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS submissions (
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS winner (
     user_id INTEGER,
-    username TEXT
+    username TEXT,
+    rank INTEGER
 )
 """)
 
