@@ -103,7 +103,7 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"🧪 Test command from user_id={user.id}")
 
     try:
-        await command.bot.send_message(
+        await context.bot.send_message(
             chat_id=user.id,
             text="✅ Test message works!"
         )
@@ -149,7 +149,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     for admin_id in ADMIN_IDS:
-        await command.bot.send_photo(
+        await context.bot.send_photo(
             chat_id=admin_id,
             photo=photo,
             caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
@@ -196,7 +196,7 @@ async def send_board(query, user_id):
             row = []
             board_text += "\n"
 
-    await command.bot.send_message(
+    await context.bot.send_message(
         chat_id=user_id,
         text=f"📊 Your Updated Board:\n\n{board_text}",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -261,7 +261,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 👤 SEND TO USER
         # ======================
         try:
-            await command.bot.send_message(
+            await context.bot.send_message(
                 chat_id=user_id,
                 text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
             )
@@ -323,7 +323,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 # 👤 notify user
                 try:
-                    await command.bot.send_message(
+                    await context.bot.send_message(
                         chat_id=user_id,
                         text=(
                             f"🏆 BINGO!\n"
@@ -338,7 +338,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # 📢 notify admins
                 for admin_id in ADMIN_IDS:
                     try:
-                        await command.bot.send_message(
+                        await context.bot.send_message(
                             chat_id=admin_id,
                             text=(
                                 f"🏆 NEW WINNER\n"
@@ -352,7 +352,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         print(f"❌ Failed to notify admin {admin_id}: {e}")
 
             else:
-                await command.bot.send_message(
+                await context.bot.send_message(
                     chat_id=user_id,
                     text="🎉 BINGO! All prizes have been claimed."
                 )
@@ -403,7 +403,7 @@ async def handle_reject_reason(update: Update, context: ContextTypes.DEFAULT_TYP
     }
 
     # ❌ notify user
-    await command.bot.send_message(
+    await context.bot.send_message(
         chat_id=user_id,
         text=f"{reason_text[reason]}\nBox {box_id}: {PROMPTS[box_id]}\nPlease try again!"
     )
