@@ -147,32 +147,31 @@ async def send_board(context, user_id):
     if 13 not in completed:
         completed.append(13)
 
-    # 🎨 Build visual board
     board_text = ""
     keyboard = []
     row = []
 
-   for i in range(1, 26):
+    for i in range(1, 26):
 
-    # 🟩 FREE SPACE
-    if i == 13:
-        board_text += "🟩 "
-        row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+        # 🟩 FREE SPACE
+        if i == 13:
+            board_text += "🟩 "
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
 
-    # ✅ COMPLETED
-    elif i in completed:
-        board_text += "✅ "
-        row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+        # ✅ COMPLETED
+        elif i in completed:
+            board_text += "✅ "
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
 
-    # ⬜ NOT DONE
-    else:
-        board_text += "⬜ "
-        row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+        # ⬜ NOT DONE
+        else:
+            board_text += "⬜ "
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
 
-    if len(row) == 5:
-        keyboard.append(row)
-        row = []
-        board_text += "\n"
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+            board_text += "\n"
 
     await context.bot.send_message(
         chat_id=user_id,
@@ -205,8 +204,6 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
         )
         
-        await send_board(context, user_id)
-
         # ✅ send updated board
         await send_board(context, user_id)
 
@@ -255,7 +252,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=user_id,
                     text="🎉 BINGO! All prizes have been claimed."
                 )
-                mine
+                
 async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     print("BLOCKED CLICK DETECTED")
@@ -375,15 +372,14 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "🏆 Leaderboard\n\n"
 
-    for username, rank in rows:
-        if rank <= 5:
-            prize = "$10 voucher 💰"
-        else:
-            prize = "$5 voucher 🎁"
-            
-            name = f"@{username}" if username else "User"
-            text += f"{rank}. {name} - {prize}\n"
-    await update.message.reply_text(text)
+   for username, rank in rows:
+    if rank <= 5:
+        prize = "$10 voucher 💰"
+    else:
+        prize = "$5 voucher 🎁"
+
+    name = f"@{username}" if username else "User"
+    text += f"{rank}. {name} - {prize}\n"
     
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("leaderboard", leaderboard))
