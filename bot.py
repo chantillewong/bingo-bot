@@ -141,29 +141,57 @@ async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    _, action, user_id, box_id = query.data.split("_")
-    user_id, box_id = int(user_id), int(box_id)
+    # query.data is "adm_ok_12345_5"
+    # split("_") results in: [0]adm, [1]ok, [2]12345, [3]5
+    data = query.data.split("_")
+    
+    # We check the length to prevent crashes if data is malformed
+    if len(data) < 4:
+        logging.error(f"Invalid callback data received: {query.data}")
+        return
+
+    action = data[1]  # "ok" or "no"
+    user_id = int(data[2])
+    box_id = int(data[3])
 
     if action == "ok":
         cursor.execute("UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?", (user_id, box_id))
         conn.commit()
-        await query.edit_message_caption("✅ Approved")
         
-        # Send updated board to user
+        # 1. Update the Admin's view
+        await query.edit_message_caption(caption=f"✅ **Box {box_id} Approved**", parse_mode="Markdown")
+        
+        # 2. Notify the User with their new board
         grid, kb = await get_user_board(user_id)
-        await context.bot.send_message(user_id, f"✅ Box {box_id} Approved!\n\n{grid}", reply_markup=kb, parse_mode="Markdown")
+        await context.bot.send_message(
+            chat_id=user_id, 
+            text=f"✅ **Your submission for Box {box_id} was approved!**\n\n{grid}", 
+            reply_markup=kb, 
+            parse_mode="Markdown"
+        )
 
-        # Bingo check
+        # 3. Check for Bingo
         cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
         done = [r[0] for r in cursor.fetchall()]
         if 13 not in done: done.append(13)
+        
         if check_for_bingo(done):
-            await context.bot.send_message(user_id, "🏆 BINGO! Contact admin.")
+            await context.bot.send_message(user_id, "🏆 **BINGO!** Please contact the admin to claim your prize!")
+            
     else:
+        # Rejection Logic
         cursor.execute("DELETE FROM submissions WHERE user_id=? AND box_id=?", (user_id, box_id))
         conn.commit()
-        await query.edit_message_caption("❌ Rejected")
-        await context.bot.send_message(user_id, f"❌ Box {box_id} rejected.")
+        
+        # Update Admin's view
+        await query.edit_message_caption(caption=f"❌ **Box {box_id} Rejected**", parse_mode="Markdown")
+        
+        # Notify User
+        await context.bot.send_message(
+            chat_id=user_id, 
+            text=f"❌ Your submission for **Box {box_id}** was rejected. Please try again with a better photo!",
+            parse_mode="Markdown"
+        )
 
 # --- APP ---
 if __name__ == "__main__":
