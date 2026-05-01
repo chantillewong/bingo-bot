@@ -159,7 +159,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📨 Submitted! Once approved, you'll receive a message and your board will update.")
     context.user_data.pop("box", None)
     
-async def send_board(query, user_id):
+async def send_board(context, user_id):
     cursor.execute(
         "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
         (user_id,)
@@ -202,7 +202,6 @@ async def send_board(query, user_id):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    context.user_data.pop("box", None)
     
 # =========================
 # APPROVAL + REJECTION FLOW
