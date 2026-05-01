@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
@@ -86,7 +87,19 @@ def check_for_bingo(boxes):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     grid, kb = await get_user_board(update.effective_user.id)
-    await update.message.reply_text(f"🎮 **BINGO!**\nPick a box:\n\n{grid}", reply_markup=kb, parse_mode="Markdown")
+    caption_text = f"🎮 **BINGO CHALLENGE**\nSelect a box number to see your task:\n\n{grid}"
+    
+    # Check if bingo.jpg exists in the same folder as the script
+    if os.path.exists("bingo.jpg"):
+        await update.message.reply_photo(
+            photo=open("bingo.jpg", "rb"),
+            caption=caption_text,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+    else:
+        # Fallback to text if image is missing
+        await update.message.reply_text(caption_text, reply_markup=kb, parse_mode="Markdown")
 
 async def box_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -127,7 +140,7 @@ async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    _, action, user_id, box_id = query.data.split("_")
+    _, _, action, user_id, box_id = query.data.split("_")
     user_id, box_id = int(user_id), int(box_id)
 
     if action == "ok":
@@ -135,11 +148,9 @@ async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         await query.edit_message_caption("✅ Approved")
         
-        # Send updated board to user
         grid, kb = await get_user_board(user_id)
         await context.bot.send_message(user_id, f"✅ Box {box_id} Approved!\n\n{grid}", reply_markup=kb, parse_mode="Markdown")
 
-        # Bingo check
         cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
         done = [r[0] for r in cursor.fetchall()]
         if 13 not in done: done.append(13)
