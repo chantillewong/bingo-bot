@@ -387,7 +387,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "🏆 Leaderboard\n\n"
 
-    for username, rank in rows:
+for username, rank in rows:
         if rank <= 5:
             prize = "$10 voucher 💰"
         else:
