@@ -80,8 +80,7 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ⭐ FREE SPACE
     if box_id == 13:
-        await query.message.reply_text("🟩 This is a free space! No photo required.")
-        return
+        await query.answer("Free space! No action needed", show_alert=True)
 
     context.user_data["box"] = box_id
 
@@ -331,11 +330,32 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
             board_text += "\n"
 
     await update.message.reply_text(f"Your Bingo Board:\n\n{board_text}")
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cursor.execute(
+        "SELECT username, rank FROM winner ORDER BY rank ASC"
+    )
+    rows = cursor.fetchall()
+
+    if not rows:
+        await update.message.reply_text("No winners yet!")
+        return
+
+    text = "🏆 Leaderboard\n\n"
+
+    for username, rank in rows:
+        if rank <= 5:
+            prize = "$10 voucher 💰"
+        else:
+            prize = "$5 voucher 🎁"
+            
+            name = f"@{username}" if username else "User"
+            text += f"{rank}. {name} - {prize}\n"
+    await update.message.reply_text(text)
     
 app = ApplicationBuilder().token(TOKEN).build()
-
+app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("board", board))
 app.add_handler(CommandHandler("board", board))
 app.add_handler(CallbackQueryHandler(select_box, pattern="box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^approve_"))
