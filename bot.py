@@ -75,7 +75,7 @@ PROMPTS = {
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
-    # ⭐ FREE SPACE AUTO COMPLETE
+    # ⭐ Auto-complete FREE space
     cursor.execute(
         "INSERT OR IGNORE INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, 13, "approved")
@@ -83,7 +83,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
 
     # =========================
-    # BUILD BOARD TEXT
+    # GET COMPLETED BOXES
     # =========================
     cursor.execute(
         "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
@@ -94,47 +94,39 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 13 not in completed:
         completed.append(13)
 
+    # =========================
+    # BUILD BOARD TEXT
+    # =========================
     board_text = ""
     for i in range(1, 26):
-        board_text += "✅ " if i in completed else "⬜ "
+        if i in completed:
+            board_text += "✅ "
+        else:
+            board_text += "⬜ "
+
         if i % 5 == 0:
             board_text += "\n"
 
     # =========================
     # BUILD BUTTON GRID
     # =========================
-    # =========================
-# GET COMPLETED BOXES
-# =========================
-cursor.execute(
-    "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
-    (user.id,)
-)
-completed = [row[0] for row in cursor.fetchall()]
+    keyboard = []
+    row = []
 
-if 13 not in completed:
-    completed.append(13)
+    for i in range(1, 26):
 
-# =========================
-# BUILD BUTTON GRID
-# =========================
-keyboard = []
-row = []
+        if i == 13:
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
 
-for i in range(1, 26):
+        elif i in completed:
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
 
-    if i == 13:
-        row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+        else:
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
 
-    elif i in completed:
-        row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
-
-    else:
-        row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
-
-    if len(row) == 5:
-        keyboard.append(row)
-        row = []
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -154,7 +146,6 @@ for i in range(1, 26):
     await update.message.reply_text(
         f"📊 Your Board:\n\n{board_text}"
     )
-
 # =========================
 # SELECT BOX
 # =========================
