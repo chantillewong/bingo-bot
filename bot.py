@@ -209,6 +209,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # SEND BOARD
 # =========================
 async def send_board(context, user_id):
+    # =========================
+    # GET COMPLETED
+    # =========================
     cursor.execute(
         "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
         (user_id,)
@@ -218,14 +221,53 @@ async def send_board(context, user_id):
     if 13 not in completed:
         completed.append(13)
 
-    text = ""
+    # =========================
+    # BUILD TEXT
+    # =========================
+    board_text = ""
     for i in range(1, 26):
-        text += "✅ " if i in completed else "⬜ "
+        board_text += "✅ " if i in completed else "⬜ "
         if i % 5 == 0:
-            text += "\n"
+            board_text += "\n"
 
-    await context.bot.send_message(chat_id=user_id, text=text)
+    # =========================
+    # BUILD BUTTONS
+    # =========================
+    keyboard = []
+    row = []
 
+    for i in range(1, 26):
+
+        if i == 13:
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+
+        elif i in completed:
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+
+        else:
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # =========================
+    # SEND UPDATED BOARD
+    # =========================
+    with open("bingo.jpg", "rb") as img:
+        await context.bot.send_photo(
+            chat_id=user_id,
+            photo=img,
+            caption="📊 Updated Board!\nPick another box:",
+            reply_markup=reply_markup
+        )
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=board_text
+    )
 # =========================
 # APPROVAL
 # =========================
