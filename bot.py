@@ -78,9 +78,10 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     box_id = int(query.data.split("_")[1])
 
-    # ⭐ FREE SPACE
+    # 🟩 FREE SPACE BLOCK
     if box_id == 13:
-        await query.answer("Free space! No action needed", show_alert=True)
+        await query.answer("🟩 Free space! No photo needed", show_alert=True)
+        return
 
     context.user_data["box"] = box_id
 
