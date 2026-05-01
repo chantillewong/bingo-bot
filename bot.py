@@ -428,7 +428,32 @@ def has_bingo(boxes):
 # =========================
 async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_board(context, update.message.from_user.id)
+# =========================
+# 🏆 LEADERBOARD (ADD HERE)
+# =========================
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cursor.execute(
+        "SELECT username, rank FROM winner ORDER BY rank ASC"
+    )
+    rows = cursor.fetchall()
 
+    if not rows:
+        await update.message.reply_text("No winners yet!")
+        return
+
+    text = "🏆 Leaderboard\n\n"
+
+    for username, rank in rows:
+        if rank <= 5:
+            prize = "$10 NTUC e-voucher 💰"
+        else:
+            prize = "$5 NTUC e-voucher 🎁"
+
+        name = f"@{username}" if username else "User"
+        text += f"{rank}. {name} - {prize}\n"
+
+    await update.message.reply_text(text)
+    
 # =========================
 # APP SETUP (THIS WAS MISSING)
 # =========================
@@ -436,7 +461,7 @@ app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
-
+app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^(approve|reject)_"))
 app.add_handler(CallbackQueryHandler(blocked, pattern="^blocked$"))
