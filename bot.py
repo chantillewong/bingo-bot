@@ -128,13 +128,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-   for admin_id in ADMIN_IDS:
-    await context.bot.send_photo(
-        chat_id=admin_id,
-        photo=photo,
-        caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
-        reply_markup=keyboard
-    )
+    # 📤 Send to all admins
+    for admin_id in ADMIN_IDS:
+        await context.bot.send_photo(
+            chat_id=admin_id,
+            photo=photo,
+            caption=f"{user.username} submitted Box {box_id}"
+        )
 
     await update.message.reply_text("Submitted! Waiting for approval.")
     
