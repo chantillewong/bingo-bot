@@ -142,17 +142,35 @@ async def send_board(context, user_id):
     )
     completed = [row[0] for row in cursor.fetchall()]
 
-    text = ""
+    # ⭐ free space
+    if 13 not in completed:
+        completed.append(13)
+
+    # 🎨 Build visual board
+    board_text = ""
+    keyboard = []
+    row = []
+
     for i in range(1, 26):
         if i in completed:
-            text += "✅ "
+            board_text += "✅ "
+            button_text = "✅"
         else:
-            text += "⬜ "
+            board_text += "⬜ "
+            button_text = str(i)
 
-        if i % 5 == 0:
-            text += "\n"
+        row.append(InlineKeyboardButton(button_text, callback_data=f"box_{i}"))
 
-    await context.bot.send_message(chat_id=user_id, text=text)
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+            board_text += "\n"
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=f"📊 Your Updated Board:\n\n{board_text}",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     
 # =========================
 # APPROVAL + REJECTION FLOW
@@ -178,6 +196,8 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=user_id,
             text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
         )
+        
+        await send_board(context, user_id)
 
         # ✅ send updated board
         await send_board(context, user_id)
