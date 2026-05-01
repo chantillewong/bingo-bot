@@ -257,10 +257,10 @@ for admin_id in ADMIN_IDS:
     )
 
                 # notify user
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text=f"🏆 BINGO!\nYou are winner #{rank}!\nYou won a {prize}"
-                )
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=f"🏆 BINGO!\nYou are winner #{rank}!\nYou won a {prize}"
+    )
 
                 
             else:
