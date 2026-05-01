@@ -136,12 +136,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     conn.commit()
 
-    photo = update.message.photo[-1].file_id keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user.id}_{box_id}")
-        ]
-    ])
+    photo = update.message.photo[-1].file_id
+
+keyboard = InlineKeyboardMarkup([
+    [
+        InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
+        InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user.id}_{box_id}")
+    ]
+])
 
     await context.bot.send_photo(
         chat_id=ADMIN_ID,
