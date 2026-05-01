@@ -83,17 +83,24 @@ def check_for_bingo(boxes):
     return any(all(box in boxes for box in combo) for box in wins)
 
 # --- HANDLERS ---
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     grid, kb = await get_user_board(update.effective_user.id)
-       if os.path.exists("bingo.jpg"):
+
+    caption_text = "🎉 Photo Bingo!\nSelect a box below to submit your photo 📸"
+
+    if os.path.exists("bingo.jpg"):
         await update.message.reply_photo(
             photo=open("bingo.jpg", "rb"),
             caption=caption_text,
             reply_markup=kb,
             parse_mode="Markdown"
         )
-    await update.message.reply_text(f"🎮 **BINGO!**\nPick a box:\n\n{grid}", reply_markup=kb, parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            f"🎮 *BINGO!*\nPick a box:\n\n{grid}",
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
 
 async def box_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
