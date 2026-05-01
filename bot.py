@@ -258,8 +258,8 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 mine
 async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    print("BLOCKED CLICK DETECTED")
     await query.answer("Already completed ✅", show_alert=True)
-
 
 # =========================
 # STEP 1: SHOW REJECT MENU
@@ -389,7 +389,7 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
-app.add_handler(CallbackQueryHandler(blocked, pattern="blocked"))
+app.add_handler(CallbackQueryHandler(blocked, pattern="^blocked$"))
 app.add_handler(CallbackQueryHandler(select_box, pattern="box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^approve_"))
 app.add_handler(CallbackQueryHandler(reject_menu, pattern="^rejectmenu_"))
