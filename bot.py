@@ -185,24 +185,72 @@ if action == "approve":
         text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
     )
 
-    # 🔥 NEW: send updated board
+    # update board
     await send_board(context, user_id)
 
+    # ======================
+    # 🏆 CHECK BINGO
+    # ======================
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user_id,)
+    )
+    completed = [row[0] for row in cursor.fetchall()]
+
+    # include FREE SPACE
+    if 13 not in completed:
+        completed.append(13)
+
+    if has_bingo(completed):
+
+        # prevent duplicate winner
         cursor.execute(
-            "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+            "SELECT 1 FROM winner WHERE user_id=?",
             (user_id,)
         )
-        completed = [row[0] for row in cursor.fetchall()]
+        if cursor.fetchone():
+            return
 
-        if has_bingo(completed):
-            cursor.execute("SELECT * FROM winner")
-            if not cursor.fetchone():
-                cursor.execute("INSERT INTO winner VALUES (?, ?)", (user_id, query.from_user.username))
-                conn.commit()
+        # count current winners
+        cursor.execute("SELECT COUNT(*) FROM winner")
+        count = cursor.fetchone()[0]
 
-                await query.message.reply_text(f"🏆 @{query.from_user.username} GOT BINGO FIRST!")
+        if count < 15:
+            rank = count + 1
 
-    await query.message.reply_text("Done.")
+            # get player's username (NOT admin)
+            cursor.execute(
+                "SELECT username FROM submissions WHERE user_id=? LIMIT 1",
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            username = result[0] if result else None
+
+            cursor.execute(
+                "INSERT INTO winner VALUES (?, ?, ?)",
+                (user_id, username, rank)
+            )
+            conn.commit()
+
+            prize = "$10 voucher 💰" if rank <= 5 else "$5 voucher 🎁"
+
+            # notify user
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"🏆 BINGO!\nYou are winner #{rank}!\nPrize: {prize}"
+            )
+
+            # notify admin
+            await query.message.reply_text(
+                f"🏆 NEW WINNER\n@{username} → Rank #{rank}"
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="🎉 BINGO! But all prizes are claimed."
+            )
+
+    await query.message.reply_text("✅ Done.")
 
 def has_bingo(boxes):
     wins = [
