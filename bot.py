@@ -2,7 +2,7 @@ import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8727437729:AAHPumcPZMKOm4kPoRPriV_l-7z9En3ULFU"
+TOKEN = "8727437729:AAHmJjP1aUCGdZQUWRuBoOLUqH3io380uiI"
 ADMIN_ID = 1087116288  # replace with your Telegram user ID
 
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
