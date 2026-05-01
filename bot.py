@@ -107,7 +107,7 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=user.id,
             text="✅ Test message works!"
         )
-         print("✅ Test message sent")
+        print("✅ Test message sent")
     except Exception as e:
         print(f"❌ Test failed: {e}")
     
