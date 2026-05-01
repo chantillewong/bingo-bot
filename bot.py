@@ -183,6 +183,8 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (user_id,)
         )
         completed = [row[0] for row in cursor.fetchall()]
+        if 13 not in completed:
+            completed.append(13)
 
         if has_bingo(completed):
             cursor.execute("SELECT COUNT(*) FROM winner")
@@ -297,6 +299,7 @@ def has_bingo(boxes):
         if all(x in boxes for x in combo):
             return True
     return False
+    
 async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
@@ -306,18 +309,23 @@ async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     completed = [row[0] for row in cursor.fetchall()]
 
-    text = ""
+    # ⭐ free space
+    if 13 not in completed:
+        completed.append(13)
+
+    board_text = ""
+
     for i in range(1, 26):
         if i in completed:
-            text += "✅ "
+            board_text += "✅ "
         else:
-            text += "⬜ "
+            board_text += "⬜ "
 
         if i % 5 == 0:
-            text += "\n"
+            board_text += "\n"
 
-    await update.message.reply_text(text)
-
+    await update.message.reply_text(f"Your Bingo Board:\n\n{board_text}")
+    
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
