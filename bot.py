@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 
 import os
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = [1087116288]
+ADMIN_IDS = [1087116288, 55939241]
 
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -127,8 +127,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
+   for admin_id in ADMIN_IDS:
     await context.bot.send_photo(
-        chat_id=ADMIN_ID,
+        chat_id=admin_id,
         photo=photo,
         caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
         reply_markup=keyboard
@@ -186,7 +187,11 @@ async def send_board(context, user_id):
 async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
+    
+if query.from_user.id not in ADMIN_IDS:
+    await query.answer("Not authorised ❌", show_alert=True)
+    return
+    
     action, user_id, box_id = query.data.split("_")
     user_id = int(user_id)
     box_id = int(box_id)
