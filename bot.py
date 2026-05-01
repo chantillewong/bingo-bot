@@ -18,9 +18,11 @@ CREATE TABLE IF NOT EXISTS submissions (
 """)
 
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS winner (
+CREATE TABLE IF NOT EXISTS submissions (
     user_id INTEGER,
-    username TEXT
+    username TEXT,
+    box_id INTEGER,
+    status TEXT
 )
 """)
 
@@ -96,8 +98,8 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["box"] = box_id
 
     await query.message.reply_text(
-        f"You selected Box {box_id}\nSend your photo 📸"
-    )
+    f"You selected Box {box_id}:\n{PROMPTS[box_id]}\n\nSend your photo 📸"
+)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -125,7 +127,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_photo(
         chat_id=ADMIN_ID,
         photo=photo,
-        caption=f"{user.username} submitted Box {box_id}",
+        caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
         reply_markup=keyboard
     )
 
@@ -155,10 +157,10 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if has_bingo(completed):
             cursor.execute("SELECT * FROM winner")
             if not cursor.fetchone():
-                cursor.execute("INSERT INTO winner VALUES (?, ?)", (user_id, "winner"))
+                cursor.execute("INSERT INTO winner VALUES (?, ?)", (user_id, query.from_user.username))
                 conn.commit()
 
-                await query.message.reply_text("🏆 WE HAVE A BINGO WINNER!")
+                await query.message.reply_text(f"🏆 @{query.from_user.username} GOT BINGO FIRST!")
 
     await query.message.reply_text("Done.")
 
