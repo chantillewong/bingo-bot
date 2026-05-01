@@ -152,20 +152,27 @@ async def send_board(context, user_id):
     keyboard = []
     row = []
 
-    for i in range(1, 26):
-        if i in completed:
-            board_text += "✅ "
-            button_text = "✅"
-        else:
-            board_text += "⬜ "
-            button_text = str(i)
+   for i in range(1, 26):
 
-        row.append(InlineKeyboardButton(button_text, callback_data=f"box_{i}"))
+    # 🟩 FREE SPACE
+    if i == 13:
+        board_text += "🟩 "
+        row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
 
-        if len(row) == 5:
-            keyboard.append(row)
-            row = []
-            board_text += "\n"
+    # ✅ COMPLETED
+    elif i in completed:
+        board_text += "✅ "
+        row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+
+    # ⬜ NOT DONE
+    else:
+        board_text += "⬜ "
+        row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+
+    if len(row) == 5:
+        keyboard.append(row)
+        row = []
+        board_text += "\n"
 
     await context.bot.send_message(
         chat_id=user_id,
@@ -248,6 +255,10 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=user_id,
                     text="🎉 BINGO! All prizes have been claimed."
                 )
+                mine
+async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer("Already completed ✅", show_alert=True)
 
 
 # =========================
@@ -378,6 +389,7 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
+app.add_handler(CallbackQueryHandler(blocked, pattern="blocked"))
 app.add_handler(CallbackQueryHandler(select_box, pattern="box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^approve_"))
 app.add_handler(CallbackQueryHandler(reject_menu, pattern="^rejectmenu_"))
