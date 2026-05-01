@@ -357,7 +357,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"🏆 BINGO!\n"
                         f"You are winner #{rank}!\n\n"
                         f"🎁 Prize: {prize}\n"
-                        f"📍 Please collect at the entrance!"
+                        f"📍 Please text FMD WCS S1 @AmosBok for your e-voucher!"
                     )
                 )
 
