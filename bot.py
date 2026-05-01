@@ -57,6 +57,15 @@ PROMPTS = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+
+    # ⭐ FREE SPACE AUTO COMPLETE
+    cursor.execute(
+        "INSERT OR IGNORE INTO submissions VALUES (?, ?, ?, ?)",
+        (user.id, user.username, 13, "approved")
+    )
+    conn.commit()
+
     keyboard = []
     row = []
     for i in range(1, 26):
@@ -109,6 +118,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Please select a box first using /start")
         return
 
+    # 🚫 NEW CHECK (ADD THIS)
+    cursor.execute(
+        "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='approved'",
+        (user.id, box_id)
+    )
+
+    if cursor.fetchone():
+        await update.message.reply_text("You already completed this box!")
+        return
+
+    # ✅ EXISTING CODE
     cursor.execute(
         "INSERT INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, box_id, "pending")
@@ -132,21 +152,41 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text("Submitted! Waiting for approval.")
+    
+async def send_board(context, user_id):
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user_id,)
+    )
+    completed = [row[0] for row in cursor.fetchall()]
 
-async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    text = ""
+    for i in range(1, 26):
+        if i in completed:
+            text += "✅ "
+        else:
+            text += "⬜ "
 
-    action, user_id, box_id = query.data.split("_")
-    user_id = int(user_id)
-    box_id = int(box_id)
+        if i % 5 == 0:
+            text += "\n"
 
-    if action == "approve":
-        cursor.execute(
-            "UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?",
-            (user_id, box_id)
-        )
-        conn.commit()
+    await context.bot.send_message(chat_id=user_id, text=text)
+    
+if action == "approve":
+    cursor.execute(
+        "UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?",
+        (user_id, box_id)
+    )
+    conn.commit()
+
+    # notify user
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
+    )
+
+    # 🔥 NEW: send updated board
+    await send_board(context, user_id)
 
         cursor.execute(
             "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
@@ -184,10 +224,31 @@ def has_bingo(boxes):
         if all(x in boxes for x in combo):
             return True
     return False
+    
+async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
 
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user.id,)
+    )
+    completed = [row[0] for row in cursor.fetchall()]
+
+    text = ""
+    for i in range(1, 26):
+        if i in completed:
+            text += "✅ "
+        else:
+            text += "⬜ "
+
+        if i % 5 == 0:
+            text += "\n"
+
+    await update.message.reply_text(text)
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("board", board))
 app.add_handler(CallbackQueryHandler(select_box, pattern="box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="approve_|reject_"))
 app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
