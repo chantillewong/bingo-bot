@@ -7,14 +7,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 TOKEN = "8727437729:AAHx_bGLbpc0QyJWY-oBZE2qjbu6Xag2IAk"
 ADMIN_IDS = [1087116288]
 
-# Logging helps see errors in the console
+# Logging is your best friend. Check your terminal for errors!
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- DB ---
+# --- DATABASE ---
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Prompts Mapping
+# Ensure tables are correct
+cursor.execute("CREATE TABLE IF NOT EXISTS submissions (user_id INTEGER, username TEXT, box_id INTEGER, status TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS winner (user_id INTEGER, username TEXT, rank INTEGER)")
+conn.commit()
+
 PROMPTS = {
     1: "Selfie with an elderly age 60 and above.", 2: "Take a video of your group shouting your unit slogan.",
     3: "A photo with C1F.", 4: "Wefie with your ship crew.", 5: "Wefie with another unit's crew and family.",
@@ -31,10 +35,140 @@ PROMPTS = {
 
 # --- HELPERS ---
 
-async def get_board(user_id):
-    """Generates the visual board and the button markup."""
+async def get_board_data(user_id):
+    """Fetches approved boxes and generates board text + keyboard."""
     cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
     completed = [row[0] for row in cursor.fetchall()]
+    if 13 not in completed: completed.append(13)
+
+    keyboard = []
+    row = []
+    text_grid = ""
+    for i in range(1, 26):
+        if i == 13:
+            text_grid += "🟩 "
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+        elif i in completed:
+            text_grid += "✅ "
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+        else:
+            text_grid += "⬜ "
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+        if len(row) == 5:
+            keyboard.append(row); row = []; text_grid += "\n"
+    return text_grid, InlineKeyboardMarkup(keyboard)
+
+def check_bingo(boxes):
+    wins = [[1,2,3,4,5], [6,7,8,9,10], [11,12,13,14,15], [16,17,18,19,20], [21,22,23,24,25],
+            [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24], [5,10,15,20,25],
+            [1,7,13,19,25], [5,9,13,17,21]]
+    return any(all(x in boxes for x in combo) for combo in wins)
+
+# --- HANDLERS ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    txt, kb = await get_board_data(update.effective_user.id)
+    await update.message.reply_text(f"🎮 **BINGO START!**\nSelect a box to submit:\n\n{txt}", reply_markup=kb, parse_mode="Markdown")
+
+async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    box_id = int(query.data.split("_")[1])
+    context.user_data["box"] = box_id
+    await query.message.reply_text(f"📸 **Box {box_id}**: {PROMPTS[box_id]}\n\nNow send the photo!")
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    box_id = context.user_data.get("box")
+    
+    if not box_id:
+        await update.message.reply_text("⚠️ Pick a box first using /start!")
+        return
+
+    try:
+        # Save to DB
+        cursor.execute("INSERT INTO submissions VALUES (?, ?, ?, 'pending')", (user.id, user.username, box_id))
+        conn.commit()
+
+        # Alert Admins
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Approve", callback_data=f"adm_app_{user.id}_{box_id}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"adm_rej_{user.id}_{box_id}")
+        ]])
+        
+        for admin in ADMIN_IDS:
+            await context.bot.send_photo(admin, update.message.photo[-1].file_id, 
+                                         caption=f"📥 Submission: @{user.username}\nBox {box_id}: {PROMPTS[box_id]}", 
+                                         reply_markup=kb)
+
+        # Confirm to User
+        await update.message.reply_text(f"📨 Box {box_id} sent! Waiting for approval...")
+        context.user_data.pop("box", None)
+
+    except Exception as e:
+        logging.error(f"Error in handle_photo: {e}")
+        await update.message.reply_text("❌ Database error. You might have already submitted this box!")
+
+async def admin_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    _, _, user_id, box_id = query.data.split("_")
+    user_id, box_id = int(user_id), int(box_id)
+
+    try:
+        # Update DB
+        cursor.execute("UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?", (user_id, box_id))
+        conn.commit()
+
+        # Update Admin View
+        await query.edit_message_caption(caption=query.message.caption + "\n\n✅ **APPROVED**", parse_mode="Markdown")
+
+        # Update User
+        txt, kb = await get_board_data(user_id)
+        await context.bot.send_message(user_id, f"✅ **Box {box_id} Approved!**\nYour updated board:\n\n{txt}", reply_markup=kb, parse_mode="Markdown")
+
+        # Check for Bingo
+        cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
+        done = [r[0] for r in cursor.fetchall()]
+        if 13 not in done: done.append(13)
+
+        if check_bingo(done):
+            cursor.execute("SELECT 1 FROM winner WHERE user_id=?", (user_id,))
+            if not cursor.fetchone():
+                cursor.execute("SELECT COUNT(*) FROM winner")
+                rank = cursor.fetchone()[0] + 1
+                cursor.execute("INSERT INTO winner VALUES (?, ?, ?)", (user_id, query.from_user.username, rank))
+                conn.commit()
+                await context.bot.send_message(user_id, f"🏆 **BINGO!** You are winner #{rank}!")
+                
+    except Exception as e:
+        logging.error(f"Error in approval: {e}")
+
+async def admin_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    _, _, user_id, box_id = query.data.split("_")
+    user_id, box_id = int(user_id), int(box_id)
+
+    cursor.execute("DELETE FROM submissions WHERE user_id=? AND box_id=?", (user_id, box_id))
+    conn.commit()
+
+    await query.edit_message_caption(caption=query.message.caption + "\n\n❌ **REJECTED**", parse_mode="Markdown")
+    await context.bot.send_message(user_id, f"❌ Box {box_id} was rejected. Please try again with a clearer photo!")
+
+# --- RUN ---
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
+app.add_handler(CallbackQueryHandler(admin_approve, pattern="^adm_app_"))
+app.add_handler(CallbackQueryHandler(admin_reject, pattern="^adm_rej_"))
+app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^blocked$"))
+
+print("🚀 Bot is live and listening...")
+app.run_polling()    completed = [row[0] for row in cursor.fetchall()]
     if 13 not in completed: completed.append(13)
 
     keyboard = []
