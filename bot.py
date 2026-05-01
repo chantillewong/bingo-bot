@@ -4,7 +4,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 
 import os
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = 1087116288
+ADMIN_ID = [1087116288]
 
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -235,18 +235,28 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     prize = "$5 voucher 🎁"
 
+                # 📢 notify admins
+username = query.from_user.username or "User"
+
+for admin_id in ADMIN_IDS:
+    await context.bot.send_message(
+        chat_id=admin_id,
+        text=(
+            f"🏆 NEW WINNER\n"
+            f"User: @{username}\n"
+            f"User ID: {user_id}\n"
+            f"Rank: #{rank}\n"
+            f"Prize: {prize}"
+        )
+    )
+
                 # notify user
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=f"🏆 BINGO!\nYou are winner #{rank}!\nYou won a {prize}"
                 )
 
-                # 📢 broadcast to group
-                await context.bot.send_message(
-                    chat_id=GROUP_ID,
-                    text=f"🏆 BINGO WINNER!\n@{query.from_user.username} is winner #{rank}\nWon {prize}"
-                )
-
+                
             else:
                 await context.bot.send_message(
                     chat_id=user_id,
@@ -372,14 +382,16 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "🏆 Leaderboard\n\n"
 
-   for username, rank in rows:
-    if rank <= 5:
-        prize = "$10 voucher 💰"
-    else:
-        prize = "$5 voucher 🎁"
+    for username, rank in rows:
+        if rank <= 5:
+            prize = "$10 voucher 💰"
+        else:
+            prize = "$5 voucher 🎁"
 
-    name = f"@{username}" if username else "User"
-    text += f"{rank}. {name} - {prize}\n"
+        name = f"@{username}" if username else "User"
+        text += f"{rank}. {name} - {prize}\n"
+
+    await update.message.reply_text(text)
     
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("leaderboard", leaderboard))
