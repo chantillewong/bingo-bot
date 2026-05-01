@@ -103,14 +103,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =========================
     # BUILD BUTTON GRID
     # =========================
-    keyboard = []
-    row = []
+    # =========================
+# GET COMPLETED BOXES
+# =========================
+cursor.execute(
+    "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+    (user.id,)
+)
+completed = [row[0] for row in cursor.fetchall()]
 
-    for i in range(1, 26):
+if 13 not in completed:
+    completed.append(13)
+
+# =========================
+# BUILD BUTTON GRID
+# =========================
+keyboard = []
+row = []
+
+for i in range(1, 26):
+
+    if i == 13:
+        row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+
+    elif i in completed:
+        row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+
+    else:
         row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
-        if len(row) == 5:
-            keyboard.append(row)
-            row = []
+
+    if len(row) == 5:
+        keyboard.append(row)
+        row = []
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -267,7 +291,10 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await query.message.reply_text("❌ Rejected")
-
+async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer("Already completed ✅", show_alert=True)
+    
 # =========================
 # BINGO CHECK
 # =========================
@@ -305,7 +332,7 @@ app.add_handler(CommandHandler("board", board))
 
 app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^(approve|reject)_"))
-
+app.add_handler(CallbackQueryHandler(blocked, pattern="^blocked$"))
 app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
 print("🤖 Bot is running...")
