@@ -304,7 +304,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if 13 not in completed:
             completed.append(13)
 
-        if has_bingo(completed):
+if has_bingo(completed):
 
     # 🚫 prevent duplicate winners
     cursor.execute(
