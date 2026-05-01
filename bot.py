@@ -305,10 +305,77 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             completed.append(13)
 
         if has_bingo(completed):
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="🏆 BINGO!"
+
+    # 🚫 prevent duplicate winners
+    cursor.execute(
+        "SELECT 1 FROM winner WHERE user_id=?",
+        (user_id,)
+    )
+    if cursor.fetchone():
+        return
+
+    # 🧮 count winners
+    cursor.execute("SELECT COUNT(*) FROM winner")
+    count = cursor.fetchone()[0]
+
+    if count < 15:
+        rank = count + 1
+
+        # get username
+        cursor.execute(
+            "SELECT username FROM submissions WHERE user_id=? LIMIT 1",
+            (user_id,)
+        )
+        result = cursor.fetchone()
+        username = result[0] if result else None
+        display_name = f"@{username}" if username else f"User {user_id}"
+
+        # 💾 store winner
+        cursor.execute(
+            "INSERT INTO winner VALUES (?, ?, ?)",
+            (user_id, username, rank)
+        )
+        conn.commit()
+
+        # 🎁 prize logic
+        if rank <= 5:
+            prize = "$10 NTUC e-voucher 💰"
+        else:
+            prize = "$5 NTUC e-voucher 🎁"
+
+        # ======================
+        # 👤 NOTIFY USER
+        # ======================
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=(
+                f"🏆 BINGO!\n"
+                f"You are winner #{rank}!\n\n"
+                f"🎁 Prize: {prize}\n"
+                f"📍 Please collect at the entrance!"
             )
+        )
+
+        # ======================
+        # 👮 NOTIFY ADMIN
+        # ======================
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=(
+                f"🏆 NEW WINNER\n"
+                f"User: {display_name}\n"
+                f"User ID: {user_id}\n"
+                f"Rank: #{rank}\n"
+                f"Prize: {prize}"
+            )
+        )
+
+    else:
+        # all prizes gone
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="🎉 BINGO! But all prizes have been claimed."
+        )
 
         await query.message.reply_text("✅ Approved")
 
