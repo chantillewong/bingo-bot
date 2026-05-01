@@ -330,6 +330,7 @@ app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
+app.add_handler(CommandHandler("board", board))
 app.add_handler(CallbackQueryHandler(select_box, pattern="box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^approve_"))
 app.add_handler(CallbackQueryHandler(reject_menu, pattern="^rejectmenu_"))
