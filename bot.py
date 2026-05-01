@@ -1,40 +1,189 @@
 import sqlite3
 import logging
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# --- CONFIG ---
+# --- CONFIGURATION ---
 TOKEN = "8727437729:AAHx_bGLbpc0QyJWY-oBZE2qjbu6Xag2IAk"
 ADMIN_IDS = [1087116288]
 
-# Logging is your best friend. Check your terminal for errors!
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- DATABASE ---
+# --- DATABASE SETUP ---
 conn = sqlite3.connect("bingo.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Ensure tables are correct
 cursor.execute("CREATE TABLE IF NOT EXISTS submissions (user_id INTEGER, username TEXT, box_id INTEGER, status TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS winner (user_id INTEGER, username TEXT, rank INTEGER)")
 conn.commit()
 
+# --- DATA ---
 PROMPTS = {
-    1: "Selfie with an elderly age 60 and above.", 2: "Take a video of your group shouting your unit slogan.",
-    3: "A photo with C1F.", 4: "Wefie with your ship crew.", 5: "Wefie with another unit's crew and family.",
-    6: "Selfie with a child aged 3 and below.", 7: "Group photo with Ah Meng's statue.",
-    8: "Wefie with family in an animal show.", 9: "Take a photo with DY1F.",
-    10: "Take a video of family member feeding an animal.", 11: "Wefie with a Peacock.",
-    12: "Wefie with a Primate.", 13: "Free space!", 14: "Wefie with a lion.",
-    15: "Wefie with an African Painted Dog.", 16: "Take a video of your group shouting 1F slogan.",
-    17: "Wefie with an animal from the Savannah.", 18: "Wefie with an Otter.",
-    19: "Picture of your family member holding an animal.", 20: "Wefie with a Giraffe.",
-    21: "Wefie with an animal from the rainforest.", 22: "Wefie with an animal from the Antartica.",
-    23: "Wefie with a Komodo Dragon.", 24: "A photo with MC1F.", 25: "Group photo with Inuka Statue.",
+    1: "Selfie with an elderly age 60 and above.",
+    2: "Take a video of your group shouting your unit slogan.",
+    3: "A photo with C1F.",
+    4: "Wefie with your ship crew.",
+    5: "Wefie with another unit's crew and family.",
+    6: "Selfie with a child aged 3 and below.",
+    7: "Group photo with Ah Meng's statue.",
+    8: "Wefie with family in an animal show.",
+    9: "Take a photo with DY1F.",
+    10: "Take a video of family member feeding an animal.",
+    11: "Wefie with a Peacock.",
+    12: "Wefie with a Primate.",
+    13: "Free space!",
+    14: "Wefie with a lion.",
+    15: "Wefie with an African Painted Dog.",
+    16: "Take a video of your group shouting 1F slogan.",
+    17: "Wefie with an animal from the Savannah.",
+    18: "Wefie with an Otter.",
+    19: "Picture of your family member holding an animal.",
+    20: "Wefie with a Giraffe.",
+    21: "Wefie with an animal from the rainforest.",
+    22: "Wefie with an animal from the Antartica.",
+    23: "Wefie with a Komodo Dragon.",
+    24: "A photo with MC1F.",
+    25: "Group photo with Inuka Statue."
 }
 
-# --- HELPERS ---
+# --- HELPER FUNCTIONS ---
 
+async def get_user_board(user_id):
+    cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
+    completed = [row[0] for row in cursor.fetchall()]
+    if 13 not in completed:
+        completed.append(13)
+
+    keyboard = []
+    row = []
+    visual_grid = ""
+    for i in range(1, 26):
+        if i == 13:
+            visual_grid += "🟩 "
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+        elif i in completed:
+            visual_grid += "✅ "
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+        else:
+            visual_grid += "⬜ "
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+        
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+            visual_grid += "\n"
+            
+    return visual_grid, InlineKeyboardMarkup(keyboard)
+
+def check_for_bingo(boxes):
+    winning_combos = [
+        [1,2,3,4,5], [6,7,8,9,10], [11,12,13,14,15], [16,17,18,19,20], [21,22,23,24,25], # Rows
+        [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24], [5,10,15,20,25], # Cols
+        [1,7,13,19,25], [5,9,13,17,21] # Diagonals
+    ]
+    return any(all(box in boxes for box in combo) for combo in winning_combos)
+
+# --- BOT LOGIC ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    grid, kb = await get_user_board(update.effective_user.id)
+    await update.message.reply_text(
+        f"🎉 **BINGO CHALLENGE**\nSelect a box to see the task:\n\n{grid}",
+        reply_markup=kb,
+        parse_mode="Markdown"
+    )
+
+async def box_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    box_id = int(query.data.split("_")[1])
+    context.user_data["active_box"] = box_id
+    await query.message.reply_text(f"📸 **Box {box_id}**: {PROMPTS[box_id]}\n\nSend your photo now!")
+
+async def photo_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    box_id = context.user_data.get("active_box")
+
+    if not box_id:
+        await update.message.reply_text("❌ Select a box first using /start")
+        return
+
+    try:
+        cursor.execute("INSERT INTO submissions (user_id, username, box_id, status) VALUES (?, ?, ?, 'pending')", 
+                       (user.id, user.username, box_id))
+        conn.commit()
+
+        admin_kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Approve", callback_data=f"adm_ok_{user.id}_{box_id}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"adm_no_{user.id}_{box_id}")
+        ]])
+
+        for admin_id in ADMIN_IDS:
+            await context.bot.send_photo(
+                chat_id=admin_id,
+                photo=update.message.photo[-1].file_id,
+                caption=f"📥 **New Submission**\nUser: @{user.username}\nBox: {box_id}\nTask: {PROMPTS[box_id]}",
+                reply_markup=admin_kb,
+                parse_mode="Markdown"
+            )
+
+        await update.message.reply_text(f"📨 Box {box_id} submitted! Waiting for approval.")
+        context.user_data.pop("active_box", None)
+    except Exception as e:
+        logging.error(f"DB Error: {e}")
+        await update.message.reply_text("⚠️ You already have a pending submission for this box.")
+
+async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data.split("_")
+    action = data[1] # 'ok' or 'no'
+    user_id = int(data[2])
+    box_id = int(data[3])
+
+    if action == "ok":
+        cursor.execute("UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?", (user_id, box_id))
+        conn.commit()
+        
+        await query.edit_message_caption("✅ **Approved**", parse_mode="Markdown")
+        
+        # Notify User & Send Board
+        grid, kb = await get_user_board(user_id)
+        await context.bot.send_message(user_id, f"✅ **Box {box_id} Approved!**\nYour board:\n\n{grid}", reply_markup=kb, parse_mode="Markdown")
+
+        # Bingo Logic
+        cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
+        done = [r[0] for r in cursor.fetchall()]
+        if 13 not in done: done.append(13)
+
+        if check_for_bingo(done):
+            cursor.execute("SELECT 1 FROM winner WHERE user_id=?", (user_id,))
+            if not cursor.fetchone():
+                cursor.execute("SELECT COUNT(*) FROM winner")
+                rank = cursor.fetchone()[0] + 1
+                cursor.execute("INSERT INTO winner VALUES (?, ?, ?)", (user_id, "User", rank))
+                conn.commit()
+                await context.bot.send_message(user_id, f"🏆 **BINGO!** You are winner #{rank}!")
+    else:
+        cursor.execute("DELETE FROM submissions WHERE user_id=? AND box_id=?", (user_id, box_id))
+        conn.commit()
+        await query.edit_message_caption("❌ **Rejected**", parse_mode="Markdown")
+        await context.bot.send_message(user_id, f"❌ Box {box_id} was rejected. Please try again!")
+
+# --- MAIN ---
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.PHOTO, photo_upload))
+    app.add_handler(CallbackQueryHandler(box_click, pattern="^box_"))
+    app.add_handler(CallbackQueryHandler(admin_decision, pattern="^adm_"))
+    app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^blocked$"))
+
+    print("🚀 Bot Started Successfully")
+    app.run_polling()
 async def get_board_data(user_id):
     """Fetches approved boxes and generates board text + keyboard."""
     cursor.execute("SELECT box_id FROM submissions WHERE user_id=? AND status='approved'", (user_id,))
