@@ -75,13 +75,34 @@ PROMPTS = {
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
-    # auto add FREE SPACE
+    # ⭐ FREE SPACE AUTO COMPLETE
     cursor.execute(
         "INSERT OR IGNORE INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, 13, "approved")
     )
     conn.commit()
 
+    # =========================
+    # BUILD BOARD TEXT
+    # =========================
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user.id,)
+    )
+    completed = [row[0] for row in cursor.fetchall()]
+
+    if 13 not in completed:
+        completed.append(13)
+
+    board_text = ""
+    for i in range(1, 26):
+        board_text += "✅ " if i in completed else "⬜ "
+        if i % 5 == 0:
+            board_text += "\n"
+
+    # =========================
+    # BUILD BUTTON GRID
+    # =========================
     keyboard = []
     row = []
 
@@ -91,9 +112,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append(row)
             row = []
 
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # =========================
+    # MESSAGE 1 → IMAGE + BUTTONS
+    # =========================
+    with open("bingo.jpg", "rb") as img:
+        await update.message.reply_photo(
+            photo=img,
+            caption="🎮 BINGO!\nPick a box:",
+            reply_markup=reply_markup
+        )
+
+    # =========================
+    # MESSAGE 2 → BOARD TEXT
+    # =========================
     await update.message.reply_text(
-        "🎮 BINGO! Pick a box:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        f"📊 Your Board:\n\n{board_text}"
     )
 
 # =========================
