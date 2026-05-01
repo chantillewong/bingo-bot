@@ -77,10 +77,16 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     box_id = int(query.data.split("_")[1])
+
+    # ⭐ FREE SPACE
+    if box_id == 13:
+        await query.message.reply_text("🟩 This is a free space! No photo required.")
+        return
+
     context.user_data["box"] = box_id
 
     await query.message.reply_text(
-    f"You selected Box {box_id}:\n{PROMPTS[box_id]}\n\nSend your photo 📸"
+        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo!"
     )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
