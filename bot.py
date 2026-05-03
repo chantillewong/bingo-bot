@@ -69,7 +69,28 @@ PROMPTS = {
     24: "A photo with MC1F.",
     25: "Group photo with Inuka Statue."
 }
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
+    await update.message.reply_text(f"Your ID: {user_id}")
+
+    # test sending to yourself via bot API
+    try:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ Bot can message you"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error sending to YOU: {e}")
+
+    # test admin send
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="✅ Bot can message admin"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error sending to ADMIN: {e}")
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(str(update.message.from_user.id))
     
@@ -462,6 +483,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("myid", myid))
+app.add_handler(CommandHandler("test", test))
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
 app.add_handler(CommandHandler("leaderboard", leaderboard))
