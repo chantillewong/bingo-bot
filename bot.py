@@ -193,7 +193,7 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 # HANDLE PHOTO
 # =========================
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     box_id = context.user_data.get("box")
 
@@ -217,8 +217,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     conn.commit()
 
-    photo = update.message.photo[-1].file_id
+    if update.message.photo:
+        file_id = update.message.photo[-1].file_id
+        media_type = "photo"
 
+    elif update.message.video:
+        file_id = update.message.video.file_id
+        media_type = "video"
+
+    else:
+        await update.message.reply_text("Please send a photo or video.")
+        return
+        
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
@@ -227,11 +237,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     await context.bot.send_photo(
-        chat_id=ADMIN_ID,
-        photo=photo,
-        caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
-        reply_markup=keyboard
-    )
+        if update.message.photo:
+            file_id = update.message.photo[-1].file_id
+            media_type = "photo"
+
+    elif update.message.video:
+        # 🔒 SIZE LIMIT CHECK (ADD HERE)
+        if update.message.video.file_size > 20_000_000:  # 20MB
+            await update.message.reply_text("🚫 Video too large! Please keep under 20MB.")
+            return
+
+        file_id = update.message.video.file_id
+        media_type = "video"
+
+    else:
+        await update.message.reply_text("Please send a photo or video.")
+        return
 
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
 
@@ -495,7 +516,7 @@ app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^(approve|reject)_"))
 app.add_handler(CallbackQueryHandler(blocked, pattern="^blocked$"))
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO, handle_media))
 
 print("🤖 Bot is running...")
 app.run_polling()
