@@ -93,7 +93,12 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error sending to ADMIN: {e}")
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(str(update.message.from_user.id))
-    
+
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.message.from_user.id,
+        text="If you see this, it's working"
+    )
 # =========================
 # START
 # =========================
