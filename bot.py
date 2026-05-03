@@ -70,6 +70,9 @@ PROMPTS = {
     25: "Group photo with Inuka Statue."
 }
 
+async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(str(update.message.from_user.id))
+    
 # =========================
 # START
 # =========================
@@ -458,7 +461,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # APP SETUP (THIS WAS MISSING)
 # =========================
 app = ApplicationBuilder().token(TOKEN).build()
-
+app.add_handler(CommandHandler("myid", myid))
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("board", board))
 app.add_handler(CommandHandler("leaderboard", leaderboard))
