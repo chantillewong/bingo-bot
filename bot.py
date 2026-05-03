@@ -227,7 +227,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     await context.bot.send_photo(
-        chat_id=ADMIN_ID,
+        chat_id=update.message.from_user.id,
         photo=photo,
         caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
         reply_markup=keyboard
