@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     user_id INTEGER,
     username TEXT,
     box_id INTEGER,
-    status TEXT
+    status TEXT,
+    UNIQUE(user_id, box_id)
 )
 """)
 
@@ -170,14 +171,27 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["box"] = box_id
 
     await query.message.reply_text(
-        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo!"
+        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo or video!\nNote:Video must be under 20MB, (~5-10s)."
+        
     )
 
 # =========================
 # HANDLE PHOTO
 # =========================
+import time  # 👈 make sure this is at the top of your file
+
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
+
+    # 🚫 RATE LIMIT (add this block)
+    if "last_submit" in context.user_data:
+        if time.time() - context.user_data["last_submit"] < 3:
+            await update.message.reply_text("⏳ Please wait a few seconds before sending again!")
+            return
+
+    context.user_data["last_submit"] = time.time()
+    # ✅ END RATE LIMIT
+
     box_id = context.user_data.get("box")
 
     if not box_id:
@@ -197,7 +211,13 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media_type = "photo"
     elif update.message.video:
         if update.message.video.file_size and update.message.video.file_size > 20_000_000:
-            await update.message.reply_text("🚫 Video too large! Keep under 20MB.")
+            await update.message.reply_text( 
+                "🚫 Video too large! (Max 20MB)\n\n"
+                "💡 Tip:\n"
+                "• Keep videos under ~5–10 seconds\n"
+                "• Use Telegram camera instead of gallery\n"
+                "• Lower video quality in camera settings"
+            )
             return
         file_id = update.message.video.file_id
         media_type = "video"
@@ -206,7 +226,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     cursor.execute(
-        "INSERT INTO submissions VALUES (?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, box_id, "pending")
     )
     conn.commit()
