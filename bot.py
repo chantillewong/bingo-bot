@@ -286,6 +286,20 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action, user_id, box_id = query.data.split("_")
     user_id, box_id = int(user_id), int(box_id)
 
+    # ======================
+    # GET USERNAME
+    # ======================
+    cursor.execute(
+        "SELECT username FROM submissions WHERE user_id=? LIMIT 1",
+        (user_id,)
+    )
+    result = cursor.fetchone()
+    username = result[0] if result else None
+    name = f"@{username}" if username else f"User {user_id}"
+
+    # ======================
+    # ✅ APPROVE
+    # ======================
     if action == "approve":
         cursor.execute(
             "UPDATE submissions SET status='approved' WHERE user_id=? AND box_id=?",
@@ -293,12 +307,24 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
 
-        await query.edit_message_caption(f"✅ Approved Box {box_id}")
+        # update admin message
+        try:
+            await query.edit_message_caption(f"✅ Approved\n{name}\nBox {box_id}")
+        except:
+            await query.edit_message_text(f"✅ Approved\n{name}\nBox {box_id}")
 
-        await context.bot.send_message(user_id, f"✅ Approved Box {box_id}")
+        # notify user
+        await context.bot.send_message(
+            user_id,
+            f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
+        )
+
+        # update board
         await send_board(context, user_id)
 
-        # check bingo
+        # ======================
+        # 🏆 CHECK BINGO
+        # ======================
         cursor.execute(
             "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
             (user_id,)
@@ -310,38 +336,73 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if has_bingo(boxes):
 
-            cursor.execute("SELECT COUNT(*) FROM winner")
-            count = cursor.fetchone()[0]
-
-            cursor.execute("SELECT 1 FROM winner WHERE user_id=?", (user_id,))
+            # 🚫 prevent duplicate winners
+            cursor.execute(
+                "SELECT 1 FROM winner WHERE user_id=?",
+                (user_id,)
+            )
             if cursor.fetchone():
                 return
+
+            # 🧮 count winners
+            cursor.execute("SELECT COUNT(*) FROM winner")
+            count = cursor.fetchone()[0]
 
             if count < 15:
                 rank = count + 1
 
+                # save winner WITH username
                 cursor.execute(
                     "INSERT INTO winner VALUES (?, ?, ?)",
-                    (user_id, None, rank)
+                    (user_id, username, rank)
                 )
                 conn.commit()
 
-                prize = "$10 voucher 💰" if rank <= 5 else "$5 voucher 🎁"
+                # 🎁 prize
+                prize = "$10 NTUC e-voucher 💰" if rank <= 5 else "$5 NTUC e-voucher 🎁"
 
+                # 👤 notify user
+                name = f"@{username}" if username else "You"
                 await context.bot.send_message(
                     user_id,
-                    f"🏆 BINGO!\nYou are #{rank}\nPrize: {prize}"
+                    f"🏆 BINGO!\n{name}, you are winner #{rank}!\n🎁 Prize: {prize} Please text FMD WCS S1 for your e-voucher!🥳"
                 )
 
-    else:
+                # 👮 notify ALL admins
+                for admin_id in get_admin_ids():
+                    try:
+                        await context.bot.send_message(
+                            admin_id,
+                            f"🏆 NEW WINNER\n{name}\nUser ID: {user_id}\nRank: #{rank}\nPrize: {prize}"
+                        )
+                    except Exception as e:
+                        print(f"Admin notify error: {e}")
+
+            else:
+                await context.bot.send_message(
+                    user_id,
+                    "🎉 BINGO! But all prizes have been claimed."
+                )
+
+    # ======================
+    # ❌ REJECT
+    # ======================
+    elif action == "reject":
         cursor.execute(
             "DELETE FROM submissions WHERE user_id=? AND box_id=?",
             (user_id, box_id)
         )
         conn.commit()
 
-        await query.edit_message_caption(f"❌ Rejected Box {box_id}")
-        await context.bot.send_message(user_id, f"❌ Rejected Box {box_id}")
+        try:
+            await query.edit_message_caption(f"❌ Rejected\n{name}\nBox {box_id}")
+        except:
+            await query.edit_message_text(f"❌ Rejected\n{name}\nBox {box_id}")
+
+        await context.bot.send_message(
+            user_id,
+            f"❌ Rejected.\nBox {box_id}: {PROMPTS[box_id]}\nTry again!"
+        )
 
 # =========================
 # BLOCKED
@@ -353,7 +414,7 @@ async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # LEADERBOARD
 # =========================
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cursor.execute("SELECT rank FROM winner ORDER BY rank ASC")
+    cursor.execute("SELECT username, rank FROM winner ORDER BY rank ASC")
     rows = cursor.fetchall()
 
     if not rows:
@@ -361,12 +422,13 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = "🏆 Leaderboard\n\n"
-    for i, (rank,) in enumerate(rows, start=1):
+
+    for username, rank in rows:
+        name = f"@{username}" if username else f"User {rank}"
         prize = "$10 💰" if rank <= 5 else "$5 🎁"
-        text += f"{i}. Winner #{rank} - {prize}\n"
+        text += f"{rank}. {name} - {prize}\n"
 
     await update.message.reply_text(text)
-
 # =========================
 # APP
 # =========================
