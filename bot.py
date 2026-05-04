@@ -272,10 +272,10 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-    # =========================
-    # SEND TO ADMIN
-    # =========================
-    for admin_id in get_admin_ids():
+# =========================
+# SEND TO ADMIN
+# =========================
+for admin_id in get_admin_ids():
     try:
         if media_type == "photo":
             await context.bot.send_photo(
@@ -293,7 +293,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         print(f"Failed to send to admin {admin_id}: {e}")
-
+        
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
 
 # =========================
