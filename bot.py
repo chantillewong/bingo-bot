@@ -220,11 +220,12 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     box_id = context.user_data.get("box")
 
+    # ❌ No box selected
     if not box_id:
         await update.message.reply_text("Please select a box first using /start")
         return
 
-    # check if already approved
+    # ❌ Already approved before
     cursor.execute(
         "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='approved'",
         (user.id, box_id)
@@ -241,7 +242,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         media_type = "photo"
 
     elif update.message.video:
-        # size limit
+        # size limit (20MB)
         if update.message.video.file_size and update.message.video.file_size > 20_000_000:
             await update.message.reply_text("🚫 Video too large! Keep under 20MB.")
             return
@@ -254,7 +255,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # =========================
-    # INSERT INTO DB
+    # SAVE SUBMISSION
     # =========================
     cursor.execute(
         "INSERT INTO submissions VALUES (?, ?, ?, ?)",
@@ -272,32 +273,38 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-# =========================
-# SEND TO ADMIN
-# =========================
-    for admin_id in get_admin_ids():
+    # =========================
+    # SEND TO ALL ADMINS
+    # =========================
+    admin_ids = get_admin_ids()
+
+    if not admin_ids:
+        await update.message.reply_text("⚠️ No admins set! Use /setadmin first.")
+        return
+
+    for admin_id in admin_ids:
         try:
             if media_type == "photo":
                 await context.bot.send_photo(
-                chat_id=admin_id,
-                photo=file_id,
-                caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
-                reply_markup=keyboard
-            )
-        else:
-            await context.bot.send_video(
-                chat_id=admin_id,
-                video=file_id,
-                caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
-                reply_markup=keyboard
-            )
-    except Exception as e:
-        print(f"Failed to send to admin {admin_id}: {e}")
+                    chat_id=admin_id,
+                    photo=file_id,
+                    caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
+                    reply_markup=keyboard
+                )
+            else:
+                await context.bot.send_video(
+                    chat_id=admin_id,
+                    video=file_id,
+                    caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
+                    reply_markup=keyboard
+                )
+        except Exception as e:
+            print(f"Failed to send to admin {admin_id}: {e}")
 
-await update.message.reply_text("⏳ Submitted! Waiting for approval...")
-        
+    # =========================
+    # CONFIRM TO USER
+    # =========================
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
-
 # =========================
 # SEND BOARD
 # =========================
