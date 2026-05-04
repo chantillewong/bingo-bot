@@ -225,6 +225,11 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     context.user_data["last_submit"] = time.time()
+    
+    box_id = context.user_data.get("box")
+    if not box_id:
+        await update.message.reply_text("Please select a box first using /start")
+        return
     # ✅ END RATE LIMIT
 
     box_id = context.user_data.get("box")
@@ -240,6 +245,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "⏳ You already submitted this box. Please wait for approval!"
             )
+            return
         else:
             await update.message.reply_text("✅ Already completed!")
             return
@@ -287,6 +293,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
+    context.user_data.pop("box", None)
 
 # =========================
 # SEND BOARD
