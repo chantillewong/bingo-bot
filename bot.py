@@ -208,6 +208,16 @@ import time  # 👈 make sure this is at the top of your file
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
+    cursor.execute("SELECT COUNT(*) FROM winner")
+    winner_count = cursor.fetchone()[0]
+    
+    if winner_count >= 15:
+        await update.message.reply_text(
+            "🏁 Game over! All 15 prizes have been claimed.\n"
+            "Thanks for participating! 🎉"
+        )
+        return
+
     # 🚫 RATE LIMIT (add this block)
     if "last_submit" in context.user_data:
         if time.time() - context.user_data["last_submit"] < 3:
@@ -328,6 +338,13 @@ async def send_board(context, user_id):
 async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    cursor.execute("SELECT COUNT(*) FROM winner")
+    winner_count = cursor.fetchone()[0]
+    
+    if winner_count >= 15:
+        await query.answer("Game already ended 🏁", show_alert=True)
+        return
 
     data = query.data.split("_")
     action, user_id, box_id = data[0], int(data[1]), int(data[2])
