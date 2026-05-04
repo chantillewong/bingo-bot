@@ -117,6 +117,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # BOARD
 # =========================
 async def send_board(context, user_id):
+    # =========================
+    # GET COMPLETED BOXES
+    # =========================
     cursor.execute(
         "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
         (user_id,)
@@ -126,34 +129,55 @@ async def send_board(context, user_id):
     if 13 not in completed:
         completed.append(13)
 
-    board = ""
+    # =========================
+    # BUILD TEXT BOARD
+    # =========================
+    board_text = ""
+    for i in range(1, 26):
+        board_text += "✅ " if i in completed else "⬜ "
+        if i % 5 == 0:
+            board_text += "\n"
+
+    # =========================
+    # BUILD BUTTON GRID
+    # =========================
     keyboard = []
     row = []
 
     for i in range(1, 26):
-        if i in completed:
-            board += "✅ "
-            btn = InlineKeyboardButton("✔️", callback_data="blocked")
-        elif i == 13:
-            board += "🟩 "
+        if i == 13:
             btn = InlineKeyboardButton("FREE", callback_data="blocked")
+        elif i in completed:
+            btn = InlineKeyboardButton("✔️", callback_data="blocked")
         else:
-            board += "⬜ "
             btn = InlineKeyboardButton(str(i), callback_data=f"box_{i}")
 
         row.append(btn)
 
-        if i % 5 == 0:
+        if len(row) == 5:
             keyboard.append(row)
             row = []
-            board += "\n"
 
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # =========================
+    # MESSAGE 1 → IMAGE + BUTTONS
+    # =========================
+    with open("bingo.jpg", "rb") as img:
+        await context.bot.send_photo(
+            chat_id=user_id,
+            photo=img,
+            caption="🎮 BINGO!\nPick a box:",
+            reply_markup=reply_markup
+        )
+
+    # =========================
+    # MESSAGE 2 → TEXT BOARD
+    # =========================
     await context.bot.send_message(
         chat_id=user_id,
-        text="📊 Your Board:\n\n" + board,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        text=f"📊 Your Board:\n\n{board_text}"
     )
-
 # =========================
 # SELECT BOX
 # =========================
