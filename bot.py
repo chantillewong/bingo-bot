@@ -228,18 +228,21 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ END RATE LIMIT
 
     box_id = context.user_data.get("box")
-
-    if not box_id:
-        await update.message.reply_text("Please select a box first using /start")
-        return
-
+    
     cursor.execute(
-        "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='approved'",
-        (user.id, box_id)
+       "SELECT status FROM submissions WHERE user_id=? AND box_id=?",
+       (user.id, box_id)
     )
-    if cursor.fetchone():
-        await update.message.reply_text("✅ Already completed!")
-        return
+
+    row = cursor.fetchone()
+    if row:
+        if row[0] == "pending":
+            await update.message.reply_text(
+                "⏳ You already submitted this box. Please wait for approval!"
+            )
+        else:
+            await update.message.reply_text("✅ Already completed!")
+            return
 
     if update.message.photo:
         file_id = update.message.photo[-1].file_id
