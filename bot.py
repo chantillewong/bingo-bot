@@ -11,7 +11,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = "8727437729:AAEGV_NJd8aTNDYoxzwK80Dcl-brWeldreU"
 OWNER_ID = 1087116288  # 🔑 ONLY YOU can add admins
 
 # =========================
