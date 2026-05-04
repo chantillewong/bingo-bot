@@ -275,10 +275,10 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =========================
 # SEND TO ADMIN
 # =========================
-for admin_id in get_admin_ids():
-    try:
-        if media_type == "photo":
-            await context.bot.send_photo(
+    for admin_id in get_admin_ids():
+        try:
+            if media_type == "photo":
+                await context.bot.send_photo(
                 chat_id=admin_id,
                 photo=file_id,
                 caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
@@ -293,6 +293,8 @@ for admin_id in get_admin_ids():
             )
     except Exception as e:
         print(f"Failed to send to admin {admin_id}: {e}")
+
+await update.message.reply_text("⏳ Submitted! Waiting for approval...")
         
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
 
@@ -355,10 +357,20 @@ async def send_board(context, user_id):
             reply_markup=reply_markup
         )
 
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=board_text
-    )
+    for admin_id in get_admin_ids():
+    try:
+        await context.bot.send_message(
+            chat_id=admin_id,
+            text=(
+                f"🏆 NEW WINNER\n"
+                f"User: {display_name}\n"
+                f"User ID: {user_id}\n"
+                f"Rank: #{rank}\n"
+                f"Prize: {prize}"
+            )
+        )
+    except Exception as e:
+        print(f"Failed to notify admin {admin_id}: {e}")
 # =========================
 # APPROVAL
 # =========================
