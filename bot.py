@@ -11,8 +11,8 @@ from telegram.ext import (
     ContextTypes,
 )
 
-TOKEN = "8727437729:AAEGV_NJd8aTNDYoxzwK80Dcl-brWeldreU"
-OWNER_ID = 1087116288  # 🔑 ONLY YOU can add admins
+TOKEN = "8727437729:AAE4ymfnABuZ1gIaRH_o2lSD4kwPimIK-WE"
+ADMIN_ID = 1087116288
 
 # =========================
 # DATABASE
@@ -34,12 +34,6 @@ CREATE TABLE IF NOT EXISTS winner (
     user_id INTEGER,
     username TEXT,
     rank INTEGER
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS admins (
-    user_id INTEGER PRIMARY KEY
 )
 """)
 
@@ -75,66 +69,71 @@ PROMPTS = {
     24: "A photo with MC1F.",
     25: "Group photo with Inuka Statue."
 }
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
 
-# =========================
-# ADMIN SYSTEM
-# =========================
-def get_admin_ids():
-    cursor.execute("SELECT user_id FROM admins")
-    return [row[0] for row in cursor.fetchall()]
+    await update.message.reply_text(f"Your ID: {user_id}")
 
-async def setadmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != OWNER_ID:
-        await update.message.reply_text("❌ Only owner can add admins")
-        return
+    # test sending to yourself via bot API
+    try:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ Bot can message you"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error sending to YOU: {e}")
 
-    if not context.args:
-        await update.message.reply_text("Usage: /setadmin <user_id>")
-        return
+    # test admin send
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text="✅ Bot can message admin"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error sending to ADMIN: {e}")
+async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(str(update.message.from_user.id))
 
-    new_admin = int(context.args[0])
-
-    cursor.execute("INSERT OR IGNORE INTO admins VALUES (?)", (new_admin,))
-    conn.commit()
-
-    await update.message.reply_text(f"✅ Added admin {new_admin}")
-
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.message.from_user.id,
+        text="If you see this, it's working"
+    )
 # =========================
 # START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
+    # ⭐ Auto-complete FREE space
     cursor.execute(
         "INSERT OR IGNORE INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, 13, "approved")
     )
     conn.commit()
 
-    await send_board(context, user.id)
-
-# =========================
-# BOARD
-# =========================
-async def send_board(context, user_id):
     # =========================
     # GET COMPLETED BOXES
     # =========================
     cursor.execute(
         "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
-        (user_id,)
+        (user.id,)
     )
-    completed = [r[0] for r in cursor.fetchall()]
+    completed = [row[0] for row in cursor.fetchall()]
 
     if 13 not in completed:
         completed.append(13)
 
     # =========================
-    # BUILD TEXT BOARD
+    # BUILD BOARD TEXT
     # =========================
     board_text = ""
     for i in range(1, 26):
-        board_text += "✅ " if i in completed else "⬜ "
+        if i in completed:
+            board_text += "✅ "
+        else:
+            board_text += "⬜ "
+
         if i % 5 == 0:
             board_text += "\n"
 
@@ -145,14 +144,15 @@ async def send_board(context, user_id):
     row = []
 
     for i in range(1, 26):
-        if i == 13:
-            btn = InlineKeyboardButton("FREE", callback_data="blocked")
-        elif i in completed:
-            btn = InlineKeyboardButton("✔️", callback_data="blocked")
-        else:
-            btn = InlineKeyboardButton(str(i), callback_data=f"box_{i}")
 
-        row.append(btn)
+        if i == 13:
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+
+        elif i in completed:
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+
+        else:
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
 
         if len(row) == 5:
             keyboard.append(row)
@@ -161,78 +161,21 @@ async def send_board(context, user_id):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # =========================
-    # SEND IMAGE + BUTTONS
+    # MESSAGE 1 → IMAGE + BUTTONS
     # =========================
     with open("bingo.jpg", "rb") as img:
-        msg = await context.bot.send_photo(
-            chat_id=user_id,
+        await update.message.reply_photo(
             photo=img,
             caption="🎮 BINGO!\nPick a box:",
             reply_markup=reply_markup
         )
 
     # =========================
-    # ⭐ STORE MESSAGE ID
+    # MESSAGE 2 → BOARD TEXT
     # =========================
-    context.bot_data.setdefault("boards", {})
-    context.bot_data["boards"][user_id] = msg.message_id
-
-    # =========================
-    # SEND TEXT BOARD
-    # =========================
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=f"📊 Your Board:\n\n{board_text}"
+    await update.message.reply_text(
+        f"📊 Your Board:\n\n{board_text}"
     )
-
-async def update_board(context, user_id):
-    boards = context.bot_data.get("boards", {})
-    message_id = boards.get(user_id)
-
-    if not message_id:
-        # fallback if missing
-        await send_board(context, user_id)
-        return
-
-    # get completed
-    cursor.execute(
-        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
-        (user_id,)
-    )
-    completed = [r[0] for r in cursor.fetchall()]
-
-    if 13 not in completed:
-        completed.append(13)
-
-    # rebuild keyboard
-    keyboard = []
-    row = []
-
-    for i in range(1, 26):
-        if i == 13:
-            btn = InlineKeyboardButton("FREE", callback_data="blocked")
-        elif i in completed:
-            btn = InlineKeyboardButton("✔️", callback_data="blocked")
-        else:
-            btn = InlineKeyboardButton(str(i), callback_data=f"box_{i}")
-
-        row.append(btn)
-
-        if len(row) == 5:
-            keyboard.append(row)
-            row = []
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # ✅ EDIT EXISTING BOARD
-    try:
-        await context.bot.edit_message_reply_markup(
-            chat_id=user_id,
-            message_id=message_id,
-            reply_markup=reply_markup
-        )
-    except Exception as e:
-        print("Edit board error:", e)
 # =========================
 # SELECT BOX
 # =========================
@@ -244,51 +187,48 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["box"] = box_id
 
     await query.message.reply_text(
-        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend photo or video!"
+        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo!"
     )
 
 # =========================
-# HANDLE MEDIA
+# HANDLE PHOTO
 # =========================
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     box_id = context.user_data.get("box")
 
     if not box_id:
-        await update.message.reply_text("Select a box first with /start")
+        await update.message.reply_text("Please select a box first using /start")
         return
 
-    name = f"@{user.username}" if user.username else f"User {user.id}"
-
-    # prevent duplicate pending
+    # check if already done
     cursor.execute(
-        "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='pending'",
+        "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='approved'",
         (user.id, box_id)
     )
     if cursor.fetchone():
-        await update.message.reply_text("⏳ Already pending approval!")
+        await update.message.reply_text("✅ Already completed!")
         return
 
-    # detect media
-    if update.message.photo:
-        file_id = update.message.photo[-1].file_id
-        media_type = "photo"
-    elif update.message.video:
-        if update.message.video.file_size and update.message.video.file_size > 20_000_000:
-            await update.message.reply_text("🚫 Video too large (max 20MB)")
-            return
-        file_id = update.message.video.file_id
-        media_type = "video"
-    else:
-        await update.message.reply_text("Send photo or video only")
-        return
-
+    # insert pending
     cursor.execute(
         "INSERT INTO submissions VALUES (?, ?, ?, ?)",
         (user.id, user.username, box_id, "pending")
     )
     conn.commit()
 
+    if update.message.photo:
+        file_id = update.message.photo[-1].file_id
+        media_type = "photo"
+
+    elif update.message.video:
+        file_id = update.message.video.file_id
+        media_type = "video"
+
+    else:
+        await update.message.reply_text("Please send a photo or video.")
+        return
+        
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
@@ -296,61 +236,99 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-    for admin_id in get_admin_ids():
-        try:
-            if media_type == "photo":
-                await context.bot.send_photo(
-                    admin_id,
-                    file_id,
-                    caption=f"{name}\nBox {box_id}\n{PROMPTS[box_id]}",
-                    reply_markup=keyboard
-                )
-            else:
-                await context.bot.send_video(
-                    admin_id,
-                    file_id,
-                    caption=f"{name}\nBox {box_id}\n{PROMPTS[box_id]}",
-                    reply_markup=keyboard
-                )
-        except Exception as e:
-            print("Admin send error:", e)
+    await context.bot.send_photo(
+        if update.message.photo:
+            file_id = update.message.photo[-1].file_id
+            media_type = "photo"
 
-    await update.message.reply_text("⏳ Submitted!")
+    elif update.message.video:
+        # 🔒 SIZE LIMIT CHECK (ADD HERE)
+        if update.message.video.file_size > 20_000_000:  # 20MB
+            await update.message.reply_text("🚫 Video too large! Please keep under 20MB.")
+            return
 
-# =========================
-# BINGO CHECK
-# =========================
-def has_bingo(boxes):
-    wins = [
-        [1,2,3,4,5],[6,7,8,9,10],[11,12,13,14,15],
-        [16,17,18,19,20],[21,22,23,24,25],
-        [1,6,11,16,21],[2,7,12,17,22],
-        [3,8,13,18,23],[4,9,14,19,24],
-        [5,10,15,20,25],
-        [1,7,13,19,25],[5,9,13,17,21]
-    ]
-    return any(all(x in boxes for x in combo) for combo in wins)
+        file_id = update.message.video.file_id
+        media_type = "video"
+
+    else:
+        await update.message.reply_text("Please send a photo or video.")
+        return
+
+    await update.message.reply_text("⏳ Submitted! Waiting for approval...")
 
 # =========================
-# APPROVAL + WINNERS
+# SEND BOARD
+# =========================
+async def send_board(context, user_id):
+    # =========================
+    # GET COMPLETED
+    # =========================
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user_id,)
+    )
+    completed = [row[0] for row in cursor.fetchall()]
+
+    if 13 not in completed:
+        completed.append(13)
+
+    # =========================
+    # BUILD TEXT
+    # =========================
+    board_text = ""
+    for i in range(1, 26):
+        board_text += "✅ " if i in completed else "⬜ "
+        if i % 5 == 0:
+            board_text += "\n"
+
+    # =========================
+    # BUILD BUTTONS
+    # =========================
+    keyboard = []
+    row = []
+
+    for i in range(1, 26):
+
+        if i == 13:
+            row.append(InlineKeyboardButton("FREE", callback_data="blocked"))
+
+        elif i in completed:
+            row.append(InlineKeyboardButton("✔️", callback_data="blocked"))
+
+        else:
+            row.append(InlineKeyboardButton(str(i), callback_data=f"box_{i}"))
+
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # =========================
+    # SEND UPDATED BOARD
+    # =========================
+    with open("bingo.jpg", "rb") as img:
+        await context.bot.send_photo(
+            chat_id=user_id,
+            photo=img,
+            caption="📊 Updated Board!\nPick another box:",
+            reply_markup=reply_markup
+        )
+
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=board_text
+    )
+# =========================
+# APPROVAL
 # =========================
 async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     action, user_id, box_id = query.data.split("_")
-    user_id, box_id = int(user_id), int(box_id)
-
-    # ======================
-    # GET USERNAME
-    # ======================
-    cursor.execute(
-        "SELECT username FROM submissions WHERE user_id=? LIMIT 1",
-        (user_id,)
-    )
-    result = cursor.fetchone()
-    username = result[0] if result else None
-    name = f"@{username}" if username else f"User {user_id}"
+    user_id = int(user_id)
+    box_id = int(box_id)
 
     # ======================
     # ✅ APPROVE
@@ -362,16 +340,10 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
 
-        # update admin message
-        try:
-            await query.edit_message_caption(f"✅ Approved\n{name}\nBox {box_id}")
-        except:
-            await query.edit_message_text(f"✅ Approved\n{name}\nBox {box_id}")
-
         # notify user
         await context.bot.send_message(
-            user_id,
-            f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
+            chat_id=user_id,
+            text=f"✅ Approved!\nBox {box_id}: {PROMPTS[box_id]}"
         )
 
         # update board
@@ -384,12 +356,12 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
             (user_id,)
         )
-        boxes = [r[0] for r in cursor.fetchall()]
+        completed = [row[0] for row in cursor.fetchall()]
 
-        if 13 not in boxes:
-            boxes.append(13)
+        if 13 not in completed:
+            completed.append(13)
 
-        if has_bingo(boxes):
+        if has_bingo(completed):
 
             # 🚫 prevent duplicate winners
             cursor.execute(
@@ -406,7 +378,16 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if count < 15:
                 rank = count + 1
 
-                # save winner WITH username
+                # get username
+                cursor.execute(
+                    "SELECT username FROM submissions WHERE user_id=? LIMIT 1",
+                    (user_id,)
+                )
+                result = cursor.fetchone()
+                username = result[0] if result else None
+                display_name = f"@{username}" if username else f"User {user_id}"
+
+                # save winner
                 cursor.execute(
                     "INSERT INTO winner VALUES (?, ?, ?)",
                     (user_id, username, rank)
@@ -414,30 +395,41 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 conn.commit()
 
                 # 🎁 prize
-                prize = "$10 NTUC e-voucher 💰" if rank <= 5 else "$5 NTUC e-voucher 🎁"
+                if rank <= 5:
+                    prize = "$10 NTUC e-voucher 💰"
+                else:
+                    prize = "$5 NTUC e-voucher 🎁"
 
                 # 👤 notify user
-                name = f"@{username}" if username else "You"
                 await context.bot.send_message(
-                    user_id,
-                    f"🏆 BINGO!\n{name}, you are winner #{rank}!\n🎁 Prize: {prize} Please text FMD WCS S1 for your e-voucher!🥳"
+                    chat_id=user_id,
+                    text=(
+                        f"🏆 BINGO!\n"
+                        f"You are winner #{rank}!\n\n"
+                        f"🎁 Prize: {prize}\n"
+                        f"📍 Please text FMD WCS S1 @AmosBok for your e-voucher!"
+                    )
                 )
 
-                # 👮 notify ALL admins
-                for admin_id in get_admin_ids():
-                    try:
-                        await context.bot.send_message(
-                            admin_id,
-                            f"🏆 NEW WINNER\n{name}\nUser ID: {user_id}\nRank: #{rank}\nPrize: {prize}"
-                        )
-                    except Exception as e:
-                        print(f"Admin notify error: {e}")
+                # 👮 notify admin
+                await context.bot.send_message(
+                    chat_id=ADMIN_ID,
+                    text=(
+                        f"🏆 NEW WINNER\n"
+                        f"User: {display_name}\n"
+                        f"User ID: {user_id}\n"
+                        f"Rank: #{rank}\n"
+                        f"Prize: {prize}"
+                    )
+                )
 
             else:
                 await context.bot.send_message(
-                    user_id,
-                    "🎉 BINGO! But all prizes have been claimed."
+                    chat_id=user_id,
+                    text="🎉 BINGO! But all prizes have been claimed."
                 )
+
+        await query.message.reply_text("✅ Approved")
 
     # ======================
     # ❌ REJECT
@@ -449,27 +441,50 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
 
-        try:
-            await query.edit_message_caption(f"❌ Rejected\n{name}\nBox {box_id}")
-        except:
-            await query.edit_message_text(f"❌ Rejected\n{name}\nBox {box_id}")
-
         await context.bot.send_message(
-            user_id,
-            f"❌ Rejected.\nBox {box_id}: {PROMPTS[box_id]}\nTry again!"
+            chat_id=user_id,
+            text=f"❌ Rejected.\nBox {box_id}: {PROMPTS[box_id]}\nTry again!"
         )
 
-# =========================
-# BLOCKED
-# =========================
+        await query.message.reply_text("❌ Rejected")
+        
 async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer("Already done ✅", show_alert=True)
+    query = update.callback_query
+    await query.answer("Already completed ✅", show_alert=True)
+    
+# =========================
+# BINGO CHECK
+# =========================
+def has_bingo(boxes):
+    wins = [
+        [1,2,3,4,5],
+        [6,7,8,9,10],
+        [11,12,13,14,15],
+        [16,17,18,19,20],
+        [21,22,23,24,25],
+        [1,6,11,16,21],
+        [2,7,12,17,22],
+        [3,8,13,18,23],
+        [4,9,14,19,24],
+        [5,10,15,20,25],
+        [1,7,13,19,25],
+        [5,9,13,17,21]
+    ]
+
+    return any(all(x in boxes for x in combo) for combo in wins)
 
 # =========================
-# LEADERBOARD
+# BOARD COMMAND
+# =========================
+async def board(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send_board(context, update.message.from_user.id)
+# =========================
+# 🏆 LEADERBOARD (ADD HERE)
 # =========================
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cursor.execute("SELECT username, rank FROM winner ORDER BY rank ASC")
+    cursor.execute(
+        "SELECT username, rank FROM winner ORDER BY rank ASC"
+    )
     rows = cursor.fetchall()
 
     if not rows:
@@ -479,25 +494,29 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "🏆 Leaderboard\n\n"
 
     for username, rank in rows:
-        name = f"@{username}" if username else f"User {rank}"
-        prize = "$10 💰" if rank <= 5 else "$5 🎁"
+        if rank <= 5:
+            prize = "$10 NTUC e-voucher 💰"
+        else:
+            prize = "$5 NTUC e-voucher 🎁"
+
+        name = f"@{username}" if username else "User"
         text += f"{rank}. {name} - {prize}\n"
 
     await update.message.reply_text(text)
+    
 # =========================
-# APP
+# APP SETUP (THIS WAS MISSING)
 # =========================
 app = ApplicationBuilder().token(TOKEN).build()
-
+app.add_handler(CommandHandler("myid", myid))
+app.add_handler(CommandHandler("test", test))
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("setadmin", setadmin))
+app.add_handler(CommandHandler("board", board))
 app.add_handler(CommandHandler("leaderboard", leaderboard))
-
 app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
 app.add_handler(CallbackQueryHandler(handle_approval, pattern="^(approve|reject)_"))
 app.add_handler(CallbackQueryHandler(blocked, pattern="^blocked$"))
-
 app.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO, handle_media))
 
-print("🤖 Bot running...")
+print("🤖 Bot is running...")
 app.run_polling()
