@@ -375,7 +375,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # update board
-        await update_board(context, user_id)
+        await send_board(context, user_id)
 
         # ======================
         # 🏆 CHECK BINGO
