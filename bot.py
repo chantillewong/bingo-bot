@@ -12,7 +12,7 @@ from telegram.ext import (
 )
 
 TOKEN = "8727437729:AAE4ymfnABuZ1gIaRH_o2lSD4kwPimIK-WE"
-ADMIN_ID = 
+
 
 # =========================
 # DATABASE
