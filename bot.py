@@ -12,7 +12,7 @@ from telegram.ext import (
 )
 
 TOKEN = "8727437729:AAE4ymfnABuZ1gIaRH_o2lSD4kwPimIK-WE"
-ADMIN_ID = 1087116288
+ADMIN_ID = 
 
 # =========================
 # DATABASE
@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS winner (
 
 conn.commit()
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS admins (
+    user_id INTEGER PRIMARY KEY
+)
+""")
+
+conn.commit()
 # =========================
 # PROMPTS
 # =========================
@@ -69,6 +76,10 @@ PROMPTS = {
     24: "A photo with MC1F.",
     25: "Group photo with Inuka Statue."
 }
+def get_admin_ids():
+    cursor.execute("SELECT user_id FROM admins")
+    return [row[0] for row in cursor.fetchall()]
+    
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
@@ -99,6 +110,18 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.message.from_user.id,
         text="If you see this, it's working"
     )
+
+async def setadmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO admins (user_id) VALUES (?)",
+        (user_id,)
+    )
+    conn.commit()
+
+    await update.message.reply_text("✅ You are now an admin!")
+    
 # =========================
 # START
 # =========================
@@ -252,26 +275,24 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =========================
     # SEND TO ADMIN
     # =========================
+    for admin_id in get_admin_ids():
     try:
         if media_type == "photo":
             await context.bot.send_photo(
-                chat_id=ADMIN_ID,
+                chat_id=admin_id,
                 photo=file_id,
                 caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
                 reply_markup=keyboard
             )
-
-        elif media_type == "video":
+        else:
             await context.bot.send_video(
-                chat_id=ADMIN_ID,
+                chat_id=admin_id,
                 video=file_id,
                 caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
                 reply_markup=keyboard
             )
-
     except Exception as e:
-        await update.message.reply_text(f"❌ Failed to send to admin: {e}")
-        return
+        print(f"Failed to send to admin {admin_id}: {e}")
 
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
 
@@ -530,6 +551,7 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("myid", myid))
 app.add_handler(CommandHandler("test", test))
 app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("setadmin", setadmin))
 app.add_handler(CommandHandler("board", board))
 app.add_handler(CommandHandler("leaderboard", leaderboard))
 app.add_handler(CallbackQueryHandler(select_box, pattern="^box_"))
