@@ -161,10 +161,10 @@ async def send_board(context, user_id):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # =========================
-    # MESSAGE 1 → IMAGE + BUTTONS
+    # SEND IMAGE + BUTTONS
     # =========================
     with open("bingo.jpg", "rb") as img:
-        await context.bot.send_photo(
+        msg = await context.bot.send_photo(
             chat_id=user_id,
             photo=img,
             caption="🎮 BINGO!\nPick a box:",
@@ -172,12 +172,67 @@ async def send_board(context, user_id):
         )
 
     # =========================
-    # MESSAGE 2 → TEXT BOARD
+    # ⭐ STORE MESSAGE ID
+    # =========================
+    context.bot_data.setdefault("boards", {})
+    context.bot_data["boards"][user_id] = msg.message_id
+
+    # =========================
+    # SEND TEXT BOARD
     # =========================
     await context.bot.send_message(
         chat_id=user_id,
         text=f"📊 Your Board:\n\n{board_text}"
     )
+
+async def update_board(context, user_id):
+    boards = context.bot_data.get("boards", {})
+    message_id = boards.get(user_id)
+
+    if not message_id:
+        # fallback if missing
+        await send_board(context, user_id)
+        return
+
+    # get completed
+    cursor.execute(
+        "SELECT box_id FROM submissions WHERE user_id=? AND status='approved'",
+        (user_id,)
+    )
+    completed = [r[0] for r in cursor.fetchall()]
+
+    if 13 not in completed:
+        completed.append(13)
+
+    # rebuild keyboard
+    keyboard = []
+    row = []
+
+    for i in range(1, 26):
+        if i == 13:
+            btn = InlineKeyboardButton("FREE", callback_data="blocked")
+        elif i in completed:
+            btn = InlineKeyboardButton("✔️", callback_data="blocked")
+        else:
+            btn = InlineKeyboardButton(str(i), callback_data=f"box_{i}")
+
+        row.append(btn)
+
+        if len(row) == 5:
+            keyboard.append(row)
+            row = []
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # ✅ EDIT EXISTING BOARD
+    try:
+        await context.bot.edit_message_reply_markup(
+            chat_id=user_id,
+            message_id=message_id,
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        print("Edit board error:", e)
 # =========================
 # SELECT BOX
 # =========================
@@ -320,7 +375,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # update board
-        await send_board(context, user_id)
+        await update_board(context, user_id)
 
         # ======================
         # 🏆 CHECK BINGO
