@@ -378,6 +378,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"{winner_name} just got Bingo! 🎉\n"
                         f"🏅 Winner #{rank}\n\n"
                         f"🎁 Only {remaining} prizes left — hurry! Keep going!"
+                    )
    
 
                     await context.bot.send_message(
