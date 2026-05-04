@@ -201,7 +201,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Please select a box first using /start")
         return
 
-    # check if already done
+    # check if already approved
     cursor.execute(
         "SELECT * FROM submissions WHERE user_id=? AND box_id=? AND status='approved'",
         (user.id, box_id)
@@ -210,41 +210,17 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Already completed!")
         return
 
-    # insert pending
-    cursor.execute(
-        "INSERT INTO submissions VALUES (?, ?, ?, ?)",
-        (user.id, user.username, box_id, "pending")
-    )
-    conn.commit()
-
+    # =========================
+    # DETECT MEDIA TYPE
+    # =========================
     if update.message.photo:
         file_id = update.message.photo[-1].file_id
         media_type = "photo"
 
     elif update.message.video:
-        file_id = update.message.video.file_id
-        media_type = "video"
-
-    else:
-        await update.message.reply_text("Please send a photo or video.")
-        return
-        
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
-            InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user.id}_{box_id}")
-        ]
-    ])
-
-    await context.bot.send_photo(
-        if update.message.photo:
-            file_id = update.message.photo[-1].file_id
-            media_type = "photo"
-
-    elif update.message.video:
-        # 🔒 SIZE LIMIT CHECK (ADD HERE)
-        if update.message.video.file_size > 20_000_000:  # 20MB
-            await update.message.reply_text("🚫 Video too large! Please keep under 20MB.")
+        # size limit
+        if update.message.video.file_size and update.message.video.file_size > 20_000_000:
+            await update.message.reply_text("🚫 Video too large! Keep under 20MB.")
             return
 
         file_id = update.message.video.file_id
@@ -252,6 +228,49 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         await update.message.reply_text("Please send a photo or video.")
+        return
+
+    # =========================
+    # INSERT INTO DB
+    # =========================
+    cursor.execute(
+        "INSERT INTO submissions VALUES (?, ?, ?, ?)",
+        (user.id, user.username, box_id, "pending")
+    )
+    conn.commit()
+
+    # =========================
+    # ADMIN BUTTONS
+    # =========================
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user.id}_{box_id}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user.id}_{box_id}")
+        ]
+    ])
+
+    # =========================
+    # SEND TO ADMIN
+    # =========================
+    try:
+        if media_type == "photo":
+            await context.bot.send_photo(
+                chat_id=ADMIN_ID,
+                photo=file_id,
+                caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
+                reply_markup=keyboard
+            )
+
+        elif media_type == "video":
+            await context.bot.send_video(
+                chat_id=ADMIN_ID,
+                video=file_id,
+                caption=f"{user.username} submitted Box {box_id}\n{PROMPTS[box_id]}",
+                reply_markup=keyboard
+            )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed to send to admin: {e}")
         return
 
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
