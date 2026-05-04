@@ -21,6 +21,14 @@ conn = sqlite3.connect("bingo.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT
+)
+""")
+conn.commit()
+
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS submissions (
     user_id INTEGER,
     username TEXT,
@@ -98,12 +106,29 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(str(update.message.from_user.id))
+#Broadcast 
 
+async def broadcast(context, message):
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+
+    for (user_id,) in users:
+        try:
+            await context.bot.send_message(chat_id=user_id, text=message)
+        except:
+            pass  # ignore users who blocked bot
+            
 # =========================
 # START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
+
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)",
+        (user.id, user.username)
+    )
+    conn.commit()
 
     # ⭐ Auto-complete FREE space
     cursor.execute(
@@ -171,7 +196,7 @@ async def select_box(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["box"] = box_id
 
     await query.message.reply_text(
-        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo or video!\nNote:Video must be under 20MB, (~5-10s)."
+        f"📸 Box {box_id}\n{PROMPTS[box_id]}\n\nSend your photo or video!\n⚠️ Video must be under 20MB, (~5-10s)."
         
     )
 
@@ -343,6 +368,17 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     conn.commit()
 
                     prize = "$10 NTUC e-voucher 💰" if rank <= 5 else "$5 NTUC e-voucher 🎁"
+
+                    remaining = 15 - rank 
+                    winner_name = f"@{username}" if username else f"User {user_id}"
+
+                    await broadcast(
+                        context, 
+                         f"🏆 BINGO WINNER!\n\n"
+                        f"{winner_name} just got Bingo! 🎉\n"
+                        f"🏅 Winner #{rank}\n\n"
+                        f"🎁 Only {remaining} prizes left — hurry! Keep going!"
+   
 
                     await context.bot.send_message(
                         chat_id=user_id,
