@@ -293,7 +293,6 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("⏳ Submitted! Waiting for approval...")
-    context.user_data.pop("box", None)
 
 # =========================
 # SEND BOARD
@@ -424,7 +423,7 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action == "reject":
         cursor.execute("DELETE FROM submissions WHERE user_id=? AND box_id=?", (user_id, box_id))
         conn.commit()
-        await context.bot.send_message(chat_id=user_id, text=f"❌ Rejected.\nBox {box_id}: {PROMPTS[box_id]}\nTry again!")
+        await context.bot.send_message(chat_id=user_id, text=f"❌ Rejected.\nBox {box_id}: {PROMPTS[box_id]}\n👉 Send a new photo/video now (no need to select again!")
         await query.message.reply_text("❌ Rejected")
         
 async def blocked(update: Update, context: ContextTypes.DEFAULT_TYPE):
